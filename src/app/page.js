@@ -1,6 +1,4 @@
-
 "use client"
-
 import { useState, useRef, useEffect } from 'react'
 import { Calendar, Clock, BookOpen, GraduationCap, Download, X } from 'lucide-react'
 import { Button } from "@/components/ui/button"
@@ -9,6 +7,7 @@ import { Select } from "@/components/ui/select"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import jsPDF from 'jspdf'
 
 
@@ -17,6 +16,44 @@ const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'sat
 
 const LOCAL_STORAGE_KEY = 'studentScheduleData'
 const EXPIRATION_TIME = 6 * 30 * 24 * 60 * 60 * 1000 // 6 months in milliseconds
+
+function DailySchedule({ subjects }) {
+  const sortedSubjects = [...subjects].sort((a, b) => a.time.localeCompare(b.time))
+
+  const subjectsByDay = daysOfWeek.reduce((acc, day) => {
+    acc[day] = sortedSubjects.filter(subject => subject.days.includes(day))
+    return acc
+  },{})
+
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+      {daysOfWeek.map(day => {
+        const daySubjects = subjectsByDay[day]
+        if (daySubjects.length === 0) return null
+
+        return (
+          <Card key={day}>
+            <CardHeader>
+              <CardTitle className="capitalize">{day}</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <ul className="space-y-2">
+                {daySubjects.map(subject => (
+                  <li key={subject.id} className="p-2 bg-gray-100 rounded">
+                    <p className="font-medium">{subject.name}</p>
+                    <p className="text-sm text-gray-600">
+                      {subject.teacher} - {subject.time}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+            </CardContent>
+          </Card>
+        )
+      })}
+    </div>
+  )
+}
 
 export default function StudentScheduleManager() {
   const [view, setView] = useState('weekly')
@@ -101,7 +138,7 @@ export default function StudentScheduleManager() {
     setSubjects(prev => prev.filter(subject => subject.id !== id))
   }
 
-const handleExamChange = (e) => {
+  const handleExamChange = (e) => {
     const { name, value } = e.target
     setNewExam(prev => ({ ...prev, [name]: value }))
   }
@@ -204,38 +241,26 @@ const handleExamChange = (e) => {
               value={view}
               onValueChange={(value) => setView(value)}
             >
-          
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
             </Select>
           </div>
           <div className="bg-white p-4 rounded-lg shadow" ref={scheduleRef}>
             <h3 className="text-lg font-semibold mb-4">Schedule View ({view})</h3>
-            <div className="space-y-4">
-              <div>
-                <h4 className="font-medium mb-2">Subjects</h4>
-                <ul className="space-y-2">
-                  {subjects.map((subject) => (
-                    <li key={subject.id} className="p-2 bg-gray-100 rounded">
-                      <p className="font-medium">{subject.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {subject.teacher} - {subject.days.join(', ')} at {subject.time}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              <div>
-                <h4 className="font-medium mb-2">Exams</h4>
-                <ul className="space-y-2">
-                  {exams.map((exam) => (
-                    <li key={exam.id} className="p-2 bg-gray-100 rounded">
-                      <p className="font-medium">{exam.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {exam.date} at {exam.time} - {exam.location}
-                      </p>
-                    </li>
-                  ))}
-                </ul>
-              </div>
+            <DailySchedule subjects={subjects} />
+            <div className="mt-4">
+              <h4 className="font-medium mb-2">Exams</h4>
+              <ul className="space-y-2">
+                {exams.map((exam) => (
+                  <li key={exam.id} className="p-2 bg-gray-100 rounded">
+                    <p className="font-medium">{exam.name}</p>
+                    <p className="text-sm text-gray-600">
+                      {exam.date} at {exam.time} - {exam.location}
+                    </p>
+                  </li>
+                ))}
+              </ul>
             </div>
           </div>
         </TabsContent>
@@ -326,7 +351,6 @@ const handleExamChange = (e) => {
             <Input
               type="date"
               name="date"
-              placeholder='Date'
               value={newExam.date}
               onChange={handleExamChange}
               required
@@ -334,7 +358,6 @@ const handleExamChange = (e) => {
             <Input
               type="time"
               name="time"
-              placeholder='Time'
               value={newExam.time}
               onChange={handleExamChange}
               required
