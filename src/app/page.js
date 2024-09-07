@@ -237,14 +237,7 @@ export default function StudentScheduleManager() {
 
         <TabsContent value="schedule" className="space-y-4">
           <div className="flex justify-between items-center">
-            <Select
-              value={view}
-              onValueChange={(value) => setView(value)}
-            >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
-            </Select>
+         
           </div>
           <div className="bg-white p-4 rounded-lg shadow" ref={scheduleRef}>
             <h3 className="text-lg font-semibold mb-4">Schedule View ({view})</h3>
