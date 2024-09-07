@@ -1,101 +1,385 @@
-import Image from "next/image";
 
-export default function Home() {
+"use client"
+
+import { useState, useRef, useEffect } from 'react'
+import { Calendar, Clock, BookOpen, GraduationCap, Download, X } from 'lucide-react'
+import { Button } from "@/components/ui/button"
+import { Input } from "@/components/ui/input"
+import { Select } from "@/components/ui/select"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import jsPDF from 'jspdf'
+
+
+
+const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+
+const LOCAL_STORAGE_KEY = 'studentScheduleData'
+const EXPIRATION_TIME = 6 * 30 * 24 * 60 * 60 * 1000 // 6 months in milliseconds
+
+export default function StudentScheduleManager() {
+  const [view, setView] = useState('weekly')
+  const [subjects, setSubjects] = useState([])
+  const [exams, setExams] = useState([])
+  const [newSubject, setNewSubject] = useState({
+    name: '',
+    teacher: '',
+    time: '',
+    days: [] 
+  })
+  const [newExam, setNewExam] = useState({
+    name: '',
+    date: '',
+    time: '',
+    location: ''
+  })
+
+  const scheduleRef = useRef(null)
+
+  useEffect(() => {
+    loadFromLocalStorage()
+  }, [])
+
+  useEffect(() => {
+    saveToLocalStorage()
+  }, [subjects, exams])
+
+  const saveToLocalStorage = () => {
+    const data = {
+      subjects,
+      exams,
+      timestamp: Date.now()
+    }
+    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data))
+  }
+
+  const loadFromLocalStorage = () => {
+    const storedData = localStorage.getItem(LOCAL_STORAGE_KEY)
+    if (storedData) {
+      const { subjects, exams, timestamp } = JSON.parse(storedData)
+      const currentTime = Date.now()
+      if (currentTime - timestamp < EXPIRATION_TIME) {
+        setSubjects(subjects)
+        setExams(exams)
+      } else {
+        localStorage.removeItem(LOCAL_STORAGE_KEY)
+      }
+    }
+  }
+
+  const handleSubjectChange = (e) => {
+    const { name, value } = e.target
+    setNewSubject(prev => ({ ...prev, [name]: value }))
+  }
+
+  const handleSubjectDayChange = (day) => {
+    setNewSubject(prev => ({
+      ...prev,
+      days: prev.days.includes(day)
+        ? prev.days.filter(d => d !== day)
+        : [...prev.days, day]
+    }))
+  }
+
+  const addSubject = (event) => {
+    event.preventDefault()
+    const subject = {
+      id: Date.now().toString(),
+      ...newSubject
+    }
+    setSubjects(prev => [...prev, subject])
+    setNewSubject({
+      name: '',
+      teacher: '',
+      time: '',
+      days: []
+    })
+  }
+
+  const removeSubject = (id) => {
+    setSubjects(prev => prev.filter(subject => subject.id !== id))
+  }
+
+const handleExamChange = (e) => {
+    const { name, value } = e.target
+    setNewExam(prev => ({ ...prev, [name]: value }))
+  }
+
+  const addExam = (event) => {
+    event.preventDefault()
+    const exam = {
+      id: Date.now().toString(),
+      ...newExam
+    }
+    setExams(prev => [...prev, exam])
+    setNewExam({
+      name: '',
+      date: '',
+      time: '',
+      location: ''
+    })
+  }
+
+  const removeExam = (id) => {
+    setExams(prev => prev.filter(exam => exam.id !== id))
+  }
+
+  const downloadPDF = () => {
+    const pdf = new jsPDF()
+    pdf.text("Student Schedule", 20, 20)
+
+    let yOffset = 40
+
+    // Add subjects to PDF
+    pdf.setFontSize(16)
+    pdf.text("Subjects", 20, yOffset)
+    yOffset += 10
+
+    pdf.setFontSize(12)
+    subjects.forEach((subject, index) => {
+      pdf.text(`${index + 1}. ${subject.name}`, 20, yOffset)
+      yOffset += 5
+      pdf.text(`   Teacher: ${subject.teacher}`, 20, yOffset)
+      yOffset += 5
+      pdf.text(`   Days: ${subject.days.join(', ')}`, 20, yOffset)
+      yOffset += 5
+      pdf.text(`   Time: ${subject.time}`, 20, yOffset)
+      yOffset += 10
+
+      if (yOffset > 270) {
+        pdf.addPage()
+        yOffset = 20
+      }
+    })
+
+    yOffset += 10
+
+    // Add exams to PDF
+    pdf.setFontSize(16)
+    pdf.text("Exams", 20, yOffset)
+    yOffset += 10
+
+    pdf.setFontSize(12)
+    exams.forEach((exam, index) => {
+      pdf.text(`${index + 1}. ${exam.name}`, 20, yOffset)
+      yOffset += 5
+      pdf.text(`   Date: ${exam.date}`, 20, yOffset)
+      yOffset += 5
+      pdf.text(`   Time: ${exam.time}`, 20, yOffset)
+      yOffset += 5
+      pdf.text(`   Location: ${exam.location}`, 20, yOffset)
+      yOffset += 10
+
+      if (yOffset > 270) {
+        pdf.addPage()
+        yOffset = 20
+      }
+    })
+
+    pdf.save("student_schedule.pdf")
+  }
+
   return (
-    <div className="grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20 font-[family-name:var(--font-geist-sans)]">
-      <main className="flex flex-col gap-8 row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="https://nextjs.org/icons/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="list-inside list-decimal text-sm text-center sm:text-left font-[family-name:var(--font-geist-mono)]">
-          <li className="mb-2">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] px-1 py-0.5 rounded font-semibold">
-              src/app/page.js
-            </code>
-            .
-          </li>
-          <li>Save and see your changes instantly.</li>
-        </ol>
-
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="https://nextjs.org/icons/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:min-w-44"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+    <div className="min-h-screen p-4 bg-gray-100 text-gray-900">
+      <header className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Student Schedule Manager</h1>
+        <div className="flex items-center space-x-4">
+          <Button onClick={downloadPDF}>
+            <Download className="mr-2 h-4 w-4" /> Download PDF
+          </Button>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-6 flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="https://nextjs.org/icons/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </header>
+
+      <Tabs defaultValue="schedule" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="schedule">Schedule</TabsTrigger>
+          <TabsTrigger value="subjects">Subjects</TabsTrigger>
+          <TabsTrigger value="exams">Exams</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="schedule" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <Select
+              value={view}
+              onValueChange={(value) => setView(value)}
+            >
+              <option value="daily">Daily</option>
+              <option value="weekly">Weekly</option>
+              <option value="monthly">Monthly</option>
+            </Select>
+          </div>
+          <div className="bg-white p-4 rounded-lg shadow" ref={scheduleRef}>
+            <h3 className="text-lg font-semibold mb-4">Schedule View ({view})</h3>
+            <div className="space-y-4">
+              <div>
+                <h4 className="font-medium mb-2">Subjects</h4>
+                <ul className="space-y-2">
+                  {subjects.map((subject) => (
+                    <li key={subject.id} className="p-2 bg-gray-100 rounded">
+                      <p className="font-medium">{subject.name}</p>
+                      <p className="text-sm text-gray-600">
+                        {subject.teacher} - {subject.days.join(', ')} at {subject.time}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div>
+                <h4 className="font-medium mb-2">Exams</h4>
+                <ul className="space-y-2">
+                  {exams.map((exam) => (
+                    <li key={exam.id} className="p-2 bg-gray-100 rounded">
+                      <p className="font-medium">{exam.name}</p>
+                      <p className="text-sm text-gray-600">
+                        {exam.date} at {exam.time} - {exam.location}
+                      </p>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="subjects" className="space-y-4">
+          <form onSubmit={addSubject} className="space-y-4">
+            <Input
+              type="text"
+              name="name"
+              placeholder="Subject Name"
+              value={newSubject.name}
+              onChange={handleSubjectChange}
+              required
+            />
+            <Input
+              type="text"
+              name="teacher"
+              placeholder="Teacher Name"
+              value={newSubject.teacher}
+              onChange={handleSubjectChange}
+              required
+            />
+            <Input
+              type="time"
+              name="time"
+              value={newSubject.time}
+              onChange={handleSubjectChange}
+              required
+            />
+            <div className="space-y-2">
+              <Label>Days</Label>
+              <div className="flex flex-wrap gap-2">
+                {daysOfWeek.map((day) => (
+                  <div key={day} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={`day-${day}`}
+                      checked={newSubject.days.includes(day)}
+                      onCheckedChange={() => handleSubjectDayChange(day)}
+                    />
+                    <Label htmlFor={`day-${day}`}>{day.charAt(0).toUpperCase() + day.slice(1)}</Label>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <Button type="submit">
+              <BookOpen className="mr-2 h-4 w-4" /> Add Subject
+            </Button>
+          </form>
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="text-lg font-semibold mb-4">Subject List</h3>
+            {subjects.length === 0 ? (
+              <p className="text-center text-gray-500">No subjects added yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {subjects.map((subject) => (
+                  <li key={subject.id} className="flex justify-between items-center p-2 bg-gray-100 rounded">
+                    <div>
+                      <p className="font-medium">{subject.name}</p>
+                      <p className="text-sm text-gray-600">
+                        {subject.teacher} - {subject.days.join(', ')} at {subject.time}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeSubject(subject.id)}
+                      aria-label={`Remove ${subject.name}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </TabsContent>
+
+        <TabsContent value="exams" className="space-y-4">
+          <form onSubmit={addExam} className="space-y-4">
+            <Input
+              type="text"
+              name="name"
+              placeholder="Exam Name"
+              value={newExam.name}
+              onChange={handleExamChange}
+              required
+            />
+            <Input
+              type="date"
+              name="date"
+              value={newExam.date}
+              onChange={handleExamChange}
+              required
+            />
+            <Input
+              type="time"
+              name="time"
+              value={newExam.time}
+              onChange={handleExamChange}
+              required
+            />
+            <Input
+              type="text"
+              name="location"
+              placeholder="Location"
+              value={newExam.location}
+              onChange={handleExamChange}
+              required
+            />
+            <Button type="submit">
+              <GraduationCap className="mr-2 h-4 w-4" /> Add Exam
+            </Button>
+          </form>
+          <div className="bg-white p-4 rounded-lg shadow">
+            <h3 className="text-lg font-semibold mb-4">Exam List</h3>
+            {exams.length === 0 ? (
+              <p className="text-center text-gray-500">No exams added yet.</p>
+            ) : (
+              <ul className="space-y-2">
+                {exams.map((exam) => (
+                  <li key={exam.id} className="flex justify-between items-center p-2 bg-gray-100 rounded">
+                    <div>
+                      <p className="font-medium">{exam.name}</p>
+                      <p className="text-sm text-gray-600">
+                        {exam.date} at {exam.time} - {exam.location}
+                      </p>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeExam(exam.id)}
+                      aria-label={`Remove ${exam.name}`}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </TabsContent>
+      </Tabs>
     </div>
-  );
+  )
 }
