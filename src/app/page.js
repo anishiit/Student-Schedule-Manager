@@ -204,9 +204,7 @@ const handleExamChange = (e) => {
               value={view}
               onValueChange={(value) => setView(value)}
             >
-              <option value="daily">Daily</option>
-              <option value="weekly">Weekly</option>
-              <option value="monthly">Monthly</option>
+          
             </Select>
           </div>
           <div className="bg-white p-4 rounded-lg shadow" ref={scheduleRef}>
@@ -328,6 +326,7 @@ const handleExamChange = (e) => {
             <Input
               type="date"
               name="date"
+              placeholder='Date'
               value={newExam.date}
               onChange={handleExamChange}
               required
@@ -335,6 +334,7 @@ const handleExamChange = (e) => {
             <Input
               type="time"
               name="time"
+              placeholder='Time'
               value={newExam.time}
               onChange={handleExamChange}
               required
