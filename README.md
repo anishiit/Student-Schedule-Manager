@@ -1,4 +1,11 @@
 This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+Hey everyone!
+
+Tired of constantly asking about the next class, professor, or checking your Excel sheet for your schedule? I’ve got the perfect solution! 😄
+
+Check out this web app I’ve built: [Student Schedule Manager](https://student-schedule-manager.vercel.app/). You can easily add your class schedule, exam dates, times, locations, and more. No more confusion or missed classes!
+
+Give it a try and let me know what you think! 😊
 
 ## Getting Started
 
