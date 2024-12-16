@@ -9,13 +9,9 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import jsPDF from 'jspdf'
-
-
+import { saveData, loadData } from './utils/indexedDB';
 
 const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
-
-const LOCAL_STORAGE_KEY = 'studentScheduleData'
-const EXPIRATION_TIME = 6 * 30 * 24 * 60 * 60 * 1000 // 6 months in milliseconds
 
 function DailySchedule({ subjects }) {
   const sortedSubjects = [...subjects].sort((a, b) => a.time.localeCompare(b.time))
@@ -23,7 +19,7 @@ function DailySchedule({ subjects }) {
   const subjectsByDay = daysOfWeek.reduce((acc, day) => {
     acc[day] = sortedSubjects.filter(subject => subject.days.includes(day))
     return acc
-  },{})
+  }, {})
 
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -75,33 +71,35 @@ export default function StudentScheduleManager() {
   const scheduleRef = useRef(null)
 
   useEffect(() => {
-    loadFromLocalStorage()
+    loadFromIndexedDB();
   }, [])
 
   useEffect(() => {
-    saveToLocalStorage()
+    saveToIndexedDB();
   }, [subjects, exams])
 
-  const saveToLocalStorage = () => {
+  const saveToIndexedDB = async () => {
     const data = {
       subjects,
       exams,
       timestamp: Date.now()
     }
-    localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data))
+    await saveData(data);
   }
 
-  const loadFromLocalStorage = () => {
-    const storedData = localStorage.getItem(LOCAL_STORAGE_KEY)
-    if (storedData) {
-      const { subjects, exams, timestamp } = JSON.parse(storedData)
-      const currentTime = Date.now()
-      if (currentTime - timestamp < EXPIRATION_TIME) {
-        setSubjects(subjects)
-        setExams(exams)
-      } else {
-        localStorage.removeItem(LOCAL_STORAGE_KEY)
+  const loadFromIndexedDB = async () => {
+    try {
+      const data = await loadData();
+      if (data) {
+        const { subjects, exams, timestamp } = data;
+        const currentTime = Date.now();
+        if (currentTime - timestamp < 6 * 30 * 24 * 60 * 60 * 1000) { // 6 months in milliseconds
+          setSubjects(subjects);
+          setExams(exams);
+        }
       }
+    } catch (error) {
+      console.error('Error loading data:', error);
     }
   }
 
@@ -400,3 +398,4 @@ export default function StudentScheduleManager() {
     </div>
   )
 }
+
