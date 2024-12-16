@@ -9,7 +9,7 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import jsPDF from 'jspdf'
-import { saveData, loadData } from './utils/indexedDB';
+import { saveData, loadData } from '../utils/indexedDB';
 
 const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
