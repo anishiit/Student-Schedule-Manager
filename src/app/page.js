@@ -1,6 +1,6 @@
 "use client"
-import { useState, useRef, useEffect } from 'react'
-import { Calendar, Clock, BookOpen, GraduationCap, Download, X } from 'lucide-react'
+import { useState, useRef, useEffect, useCallback } from 'react'
+import { Calendar, Clock, BookOpen, GraduationCap, Download, X, Loader2 } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
@@ -10,10 +10,13 @@ import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import jsPDF from 'jspdf'
 import { saveData, loadData } from '../utils/indexedDB';
+import { useDropzone } from 'react-dropzone'
+import { createWorker } from 'tesseract.js'
 
 const daysOfWeek = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
 
 function DailySchedule({ subjects }) {
+  console.log('DailySchedule:', subjects.length, subjects)
   const sortedSubjects = [...subjects].sort((a, b) => a.time.localeCompare(b.time))
 
   const subjectsByDay = daysOfWeek.reduce((acc, day) => {
@@ -51,9 +54,117 @@ function DailySchedule({ subjects }) {
   )
 }
 
+function ImageUploader({ setFromImg }) {
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [error, setError] = useState(null);
+
+  const onDrop = useCallback(async (acceptedFiles) => {
+    const file = acceptedFiles[0];
+    if (!file) return;
+
+    setIsProcessing(true);
+    setError(null);
+
+    try {
+      const worker = await createWorker("eng");
+
+      const {
+        data: { text },
+      } = await worker.recognize(file);
+      await worker.terminate();
+
+      console.log("OCR Text:", text); // Debugging extracted text
+
+      // Parse the OCR text
+      const lines = text.split("\n").filter((line) => line.trim());
+      // console.log("Lines:", lines); // Debugging split lines
+      const parsedData = [];
+      const subjectName = lines[1];
+      // console.log("SubjectName:", subjectName); // Debugging subject
+      
+      
+      lines.forEach((line) => {
+        // Match day, time, and location
+        const scheduleMatch = line.match(
+          /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\s+(\d{2}:\d{2})-(\d{2}:\d{2})\s+(.+)/i
+        );
+
+        // console.log("Schedule Match:", scheduleMatch);
+
+        if (scheduleMatch) {
+         let day = scheduleMatch[1].toLowerCase();
+          const startTime = scheduleMatch[2];
+          const endTime = scheduleMatch[3];
+          const location = scheduleMatch[4];
+
+          // Push validated time values
+         
+          
+          parsedData.push({
+            id: Date.now().toString(),
+            name: subjectName, // Placeholder for OCR subject
+            teacher: 'Unknown', // Placeholder for teacher name
+            time: startTime,
+            days: [day],
+          });
+        }
+      });
+
+      // console.log("Parsed Data:", parsedData);
+
+      if (parsedData.length > 0) {
+        setFromImg(parsedData);
+        // console.log("Final Subject:", subjectName); // Debug final subject
+      } else {
+        setError(
+          "No subjects could be extracted from the image. Please check the image format."
+        );
+      }
+    } catch (err) {
+      console.error("OCR Error:", err);
+      setError("Error processing image. Please try again.");
+    } finally {
+      setIsProcessing(false);
+    }
+  }, [setFromImg]);
+
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop,
+    accept: {
+      'image/*': ['.png', '.jpg', '.jpeg']
+    },
+    multiple: false
+  });
+
+  return (
+    <div>
+      <div
+        {...getRootProps()}
+        className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer
+          ${isDragActive ? 'border-primary bg-primary/10' : 'border-gray-300'}`}
+      >
+        <input {...getInputProps()} />
+        {isProcessing ? (
+          <div className="flex items-center justify-center space-x-2">
+            <Loader2 className="h-5 w-5 animate-spin" />
+            <p>Processing image...</p>
+          </div>
+        ) : (
+          <p>{isDragActive ? 'Drop the image here' : 'Drag & drop a timetable image, or click to select'}</p>
+        )}
+      </div>
+      {error && (
+        <p className="mt-2 text-sm text-red-600">{error}</p>
+      )}
+    </div>
+  );
+}
+
+
 export default function StudentScheduleManager() {
   const [view, setView] = useState('weekly')
   const [subjects, setSubjects] = useState([])
+  const [fromImg , setFromImg] = useState([]) // form image upload
   const [exams, setExams] = useState([])
   const [newSubject, setNewSubject] = useState({
     name: '',
@@ -69,6 +180,26 @@ export default function StudentScheduleManager() {
   })
 
   const scheduleRef = useRef(null)
+
+  const addFromImgToSubjects = () => {
+    // Transform the `fromImg` data to match the structure of a subject
+    const transformedSubjects = fromImg.map((item) => ({
+      id:  Math.random().toString(36).substring(7), // Generate a unique ID if none exists
+      name: item.name || 'Unknown Name', // Fallback if `name` is missing
+      teacher: item.teacher || 'Unknown Teacher', // Fallback for `teacher`
+      time: item.time || '00:00', // Fallback for `time`
+      days: item.days || [], // Fallback to an empty array if `days` is undefined
+    }));
+  
+    // Append to the existing `subjects` state
+    setSubjects((prevSubjects) => [...prevSubjects, ...transformedSubjects]);
+  };
+  useEffect(() => {
+    if (fromImg.length > 0) {
+      addFromImgToSubjects();
+    }
+  }, [fromImg]);
+    
 
   useEffect(() => {
     loadFromIndexedDB();
@@ -95,6 +226,7 @@ export default function StudentScheduleManager() {
         const currentTime = Date.now();
         if (currentTime - timestamp < 6 * 30 * 24 * 60 * 60 * 1000) { // 6 months in milliseconds
           setSubjects(subjects);
+          
           setExams(exams);
         }
       }
@@ -124,6 +256,7 @@ export default function StudentScheduleManager() {
       ...newSubject
     }
     setSubjects(prev => [...prev, subject])
+    
     setNewSubject({
       name: '',
       teacher: '',
@@ -257,6 +390,11 @@ export default function StudentScheduleManager() {
         </TabsContent>
 
         <TabsContent value="subjects" className="space-y-4">
+          <div className="mb-6">
+            <h3 className="text-lg font-semibold mb-2">Import Timetable</h3>
+            <ImageUploader setFromImg={setFromImg} />
+          </div>
+          
           <form onSubmit={addSubject} className="space-y-4">
             <Input
               type="text"
