@@ -169,8 +169,8 @@ export default function StudentScheduleManager() {
   const [newSubject, setNewSubject] = useState({
     name: '',
     teacher: '',
-    time: '',
-    days: [] 
+    days: [], // array of selected days
+    times: {} // { monday: '09:00', tuesday: '10:00', ... }
   })
   const [newExam, setNewExam] = useState({
     name: '',
@@ -290,29 +290,34 @@ export default function StudentScheduleManager() {
   }
 
   const handleSubjectDayChange = (day) => {
+    setNewSubject(prev => {
+      const days = prev.days.includes(day)
+        ? prev.days.filter(d => d !== day)
+        : [...prev.days, day];
+      return { ...prev, days };
+    });
+  };
+
+  const handleSubjectTimeChange = (day, value) => {
     setNewSubject(prev => ({
       ...prev,
-      days: prev.days.includes(day)
-        ? prev.days.filter(d => d !== day)
-        : [...prev.days, day]
-    }))
-  }
+      times: { ...prev.times, [day]: value }
+    }));
+  };
 
   const addSubject = (event) => {
-    event.preventDefault()
-    const subject = {
-      id: Date.now().toString(),
-      ...newSubject
-    }
-    setSubjects(prev => [...prev, subject])
-    
-    setNewSubject({
-      name: '',
-      teacher: '',
-      time: '',
-      days: []
-    })
-  }
+    event.preventDefault();
+    const { name, teacher, days, times } = newSubject;
+    const newSubjects = days.map(day => ({
+      id: Date.now().toString() + '-' + day,
+      name,
+      teacher,
+      days: [day],
+      time: times[day] || '',
+    }));
+    setSubjects(prev => [...prev, ...newSubjects]);
+    setNewSubject({ name: '', teacher: '', days: [], times: {} });
+  };
 
   const removeSubject = (id) => {
     setSubjects(prev => prev.filter(subject => subject.id !== id))
@@ -484,7 +489,7 @@ export default function StudentScheduleManager() {
               name="name"
               placeholder="Subject Name"
               value={newSubject.name}
-              onChange={handleSubjectChange}
+              onChange={e => setNewSubject(prev => ({ ...prev, name: e.target.value }))}
               required
             />
             <Input
@@ -492,19 +497,12 @@ export default function StudentScheduleManager() {
               name="teacher"
               placeholder="Location Name"
               value={newSubject.teacher}
-              onChange={handleSubjectChange}
-              required
-            />
-            <Input
-              type="time"
-              name="time"
-              value={newSubject.time}
-              onChange={handleSubjectChange}
+              onChange={e => setNewSubject(prev => ({ ...prev, teacher: e.target.value }))}
               required
             />
             <div className="space-y-2">
-              <Label>Days</Label>
-              <div className="flex flex-wrap gap-2">
+              <Label>Days & Times</Label>
+              <div className="flex flex-wrap gap-4">
                 {daysOfWeek.map((day) => (
                   <div key={day} className="flex items-center space-x-2">
                     <Checkbox
@@ -513,6 +511,15 @@ export default function StudentScheduleManager() {
                       onCheckedChange={() => handleSubjectDayChange(day)}
                     />
                     <Label htmlFor={`day-${day}`}>{day.charAt(0).toUpperCase() + day.slice(1)}</Label>
+                    {newSubject.days.includes(day) && (
+                      <Input
+                        type="time"
+                        value={newSubject.times[day] || ''}
+                        onChange={e => handleSubjectTimeChange(day, e.target.value)}
+                        required
+                        className="w-28"
+                      />
+                    )}
                   </div>
                 ))}
               </div>
