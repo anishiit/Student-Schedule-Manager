@@ -442,7 +442,7 @@ export default function StudentScheduleManager() {
             <Input
               type="text"
               name="teacher"
-              placeholder="Teacher Name"
+              placeholder="Location Name"
               value={newSubject.teacher}
               onChange={handleSubjectChange}
               required
