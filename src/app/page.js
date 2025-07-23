@@ -180,6 +180,9 @@ export default function StudentScheduleManager() {
   })
   const [editSubjectId, setEditSubjectId] = useState(null);
   const [editSubject, setEditSubject] = useState({ name: '', teacher: '', time: '', days: [] });
+  const [attendance, setAttendance] = useState({}); // { subjectId: { attended: number, total: 42 } }
+  const [showAttendancePopup, setShowAttendancePopup] = useState(false);
+  const [popupSubject, setPopupSubject] = useState(null);
 
   const scheduleRef = useRef(null)
 
@@ -209,12 +212,56 @@ export default function StudentScheduleManager() {
 
   useEffect(() => {
     saveToIndexedDB();
-  }, [subjects, exams])
+  }, [subjects, exams, attendance])
+
+  // Show popup before class time (1 min before)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const now = new Date();
+      const day = daysOfWeek[now.getDay() - 1]; // 0=Sunday
+      const currentTime = now.toTimeString().slice(0,5);
+      subjects.forEach(subject => {
+        if (subject.days.includes(day) && subject.time) {
+          // 1 min before class
+          const [h, m] = subject.time.split(':');
+          const classDate = new Date(now);
+          classDate.setHours(Number(h), Number(m)-1, 0, 0);
+          if (
+            now.getFullYear() === classDate.getFullYear() &&
+            now.getMonth() === classDate.getMonth() &&
+            now.getDate() === classDate.getDate() &&
+            now.getHours() === classDate.getHours() &&
+            now.getMinutes() === classDate.getMinutes()
+          ) {
+            setPopupSubject(subject);
+            setShowAttendancePopup(true);
+          }
+        }
+      });
+    }, 1000 * 30); // check every 30s
+    return () => clearInterval(interval);
+  }, [subjects]);
+
+  const markAttendance = (subjectId, attended) => {
+    setAttendance(prev => {
+      const prevData = prev[subjectId] || { attended: 0, total: 42 };
+      return {
+        ...prev,
+        [subjectId]: {
+          attended: attended ? Math.min(prevData.attended + 1, 42) : prevData.attended,
+          total: 42
+        }
+      };
+    });
+    setShowAttendancePopup(false);
+    setPopupSubject(null);
+  };
 
   const saveToIndexedDB = async () => {
     const data = {
       subjects,
       exams,
+      attendance,
       timestamp: Date.now()
     }
     await saveData(data);
@@ -224,12 +271,12 @@ export default function StudentScheduleManager() {
     try {
       const data = await loadData();
       if (data) {
-        const { subjects, exams, timestamp } = data;
+        const { subjects, exams, attendance: loadedAttendance, timestamp } = data;
         const currentTime = Date.now();
         if (currentTime - timestamp < 6 * 30 * 24 * 60 * 60 * 1000) { // 6 months in milliseconds
           setSubjects(subjects);
-          
           setExams(exams);
+          setAttendance(loadedAttendance || {});
         }
       }
     } catch (error) {
@@ -399,6 +446,7 @@ export default function StudentScheduleManager() {
           <TabsTrigger value="schedule">Schedule</TabsTrigger>
           <TabsTrigger value="subjects">Subjects</TabsTrigger>
           <TabsTrigger value="exams">Exams</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
         </TabsList>
 
         <TabsContent value="schedule" className="space-y-4">
@@ -629,7 +677,45 @@ export default function StudentScheduleManager() {
             )}
           </div>
         </TabsContent>
+
+        <TabsContent value="attendance" className="space-y-4">
+          <h3 className="text-lg font-semibold mb-4">Attendance</h3>
+          {subjects.length === 0 ? (
+            <p className="text-center text-gray-500">No subjects added yet.</p>
+          ) : (
+            <ul className="space-y-2">
+              {subjects.map(subject => {
+                const att = attendance[subject.id] || { attended: 0, total: 42 };
+                const percent = Math.round((att.attended / att.total) * 100);
+                const remaining = Math.max(0, Math.ceil(0.75 * att.total) - att.attended);
+                return (
+                  <li key={subject.id} className="p-2 bg-gray-100 rounded flex flex-col md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="font-medium">{subject.name}</p>
+                      <p className="text-sm text-gray-600">Attended: {att.attended} / {att.total} ({percent}%)</p>
+                      <p className="text-sm text-gray-600">Remaining for 75%: {remaining}</p>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </TabsContent>
       </Tabs>
+      {showAttendancePopup && popupSubject && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
+            <h2 className="text-lg font-bold mb-2">Attendance Check</h2>
+            <p className="mb-2">Class: <span className="font-medium">{popupSubject.name}</span></p>
+            <p className="mb-2">Location: <span className="font-medium">{popupSubject.teacher}</span></p>
+            <p className="mb-4">Time: <span className="font-medium">{popupSubject.time}</span></p>
+            <div className="flex gap-4 justify-center">
+              <Button onClick={() => markAttendance(popupSubject.id, true)} variant="default">YES</Button>
+              <Button onClick={() => markAttendance(popupSubject.id, false)} variant="destructive">NO</Button>
+            </div>
+          </div>
+        </div>
+      )}
       <footer><p className='text-center text-gray-500 py-2'>Created by Anish Kumar Singh</p></footer>
     </div>
   )
