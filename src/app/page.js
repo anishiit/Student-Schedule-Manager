@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { Calendar, Clock, BookOpen, GraduationCap, Download, X, Loader2 } from 'lucide-react'
+import { Calendar, Clock, BookOpen, GraduationCap, Download, X, Loader2, Pencil } from 'lucide-react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select } from "@/components/ui/select"
@@ -178,6 +178,8 @@ export default function StudentScheduleManager() {
     time: '',
     location: ''
   })
+  const [editSubjectId, setEditSubjectId] = useState(null);
+  const [editSubject, setEditSubject] = useState({ name: '', teacher: '', time: '', days: [] });
 
   const scheduleRef = useRef(null)
 
@@ -292,6 +294,39 @@ export default function StudentScheduleManager() {
   const removeExam = (id) => {
     setExams(prev => prev.filter(exam => exam.id !== id))
   }
+
+  const startEditSubject = (subject) => {
+    setEditSubjectId(subject.id);
+    setEditSubject({ ...subject });
+  };
+
+  const cancelEditSubject = () => {
+    setEditSubjectId(null);
+    setEditSubject({ name: '', teacher: '', time: '', days: [] });
+  };
+
+  const handleEditSubjectChange = (e) => {
+    const { name, value } = e.target;
+    setEditSubject((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleEditSubjectDayChange = (day) => {
+    setEditSubject((prev) => ({
+      ...prev,
+      days: prev.days.includes(day)
+        ? prev.days.filter((d) => d !== day)
+        : [...prev.days, day],
+    }));
+  };
+
+  const saveEditSubject = () => {
+    setSubjects((prev) =>
+      prev.map((subject) =>
+        subject.id === editSubjectId ? { ...subject, ...editSubject } : subject
+      )
+    );
+    cancelEditSubject();
+  };
 
   const downloadPDF = () => {
     const pdf = new jsPDF()
@@ -446,20 +481,83 @@ export default function StudentScheduleManager() {
               <ul className="space-y-2">
                 {subjects.map((subject) => (
                   <li key={subject.id} className="flex justify-between items-center p-2 bg-gray-100 rounded">
-                    <div>
-                      <p className="font-medium">{subject.name}</p>
-                      <p className="text-sm text-gray-600">
-                        {subject.teacher} - {subject.days.join(', ')} at {subject.time}
-                      </p>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => removeSubject(subject.id)}
-                      aria-label={`Remove ${subject.name}`}
-                    >
-                      <X className="h-4 w-4" />
-                    </Button>
+                    {editSubjectId === subject.id ? (
+                      <div className="flex-1 flex flex-col gap-2">
+                        <Input
+                          type="text"
+                          name="name"
+                          placeholder="Subject Name"
+                          value={editSubject.name}
+                          onChange={handleEditSubjectChange}
+                          required
+                        />
+                        <Input
+                          type="text"
+                          name="teacher"
+                          placeholder="Teacher Name"
+                          value={editSubject.teacher}
+                          onChange={handleEditSubjectChange}
+                          required
+                        />
+                        <Input
+                          type="time"
+                          name="time"
+                          value={editSubject.time}
+                          onChange={handleEditSubjectChange}
+                          required
+                        />
+                        <div className="space-y-2">
+                          <Label>Days</Label>
+                          <div className="flex flex-wrap gap-2">
+                            {daysOfWeek.map((day) => (
+                              <div key={day} className="flex items-center space-x-2">
+                                <Checkbox
+                                  id={`edit-day-${day}`}
+                                  checked={editSubject.days.includes(day)}
+                                  onCheckedChange={() => handleEditSubjectDayChange(day)}
+                                />
+                                <Label htmlFor={`edit-day-${day}`}>{day.charAt(0).toUpperCase() + day.slice(1)}</Label>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex gap-2 mt-2">
+                          <Button variant="default" size="sm" onClick={saveEditSubject}>
+                            Save
+                          </Button>
+                          <Button variant="ghost" size="sm" onClick={cancelEditSubject}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <>
+                        <div>
+                          <p className="font-medium">{subject.name}</p>
+                          <p className="text-sm text-gray-600">
+                            {subject.teacher} - {subject.days.join(', ')} at {subject.time}
+                          </p>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => startEditSubject(subject)}
+                            aria-label={`Edit ${subject.name}`}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            onClick={() => removeSubject(subject.id)}
+                            aria-label={`Remove ${subject.name}`}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </>
+                    )}
                   </li>
                 ))}
               </ul>
