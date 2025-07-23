@@ -180,9 +180,16 @@ export default function StudentScheduleManager() {
   })
   const [editSubjectId, setEditSubjectId] = useState(null);
   const [editSubject, setEditSubject] = useState({ name: '', teacher: '', time: '', days: [] });
-  const [attendance, setAttendance] = useState({}); // { subjectId: { attended: number, total: 42 } }
+  // Change attendance state to use subject name as key
+  const [attendance, setAttendance] = useState({}); // { [subjectName]: { attended: number, total: number } }
   const [showAttendancePopup, setShowAttendancePopup] = useState(false);
   const [popupSubject, setPopupSubject] = useState(null);
+  // Add state for confirmation dialog
+  const [confirmDialog, setConfirmDialog] = useState({ open: false, action: null, subject: null });
+  const [shownAttendancePopups, setShownAttendancePopups] = useState(new Set());
+  // Add state for editing attendance
+  const [editAttendanceSubject, setEditAttendanceSubject] = useState(null);
+  const [editAttendanceValue, setEditAttendanceValue] = useState(0);
 
   const scheduleRef = useRef(null)
 
@@ -226,28 +233,34 @@ export default function StudentScheduleManager() {
           const [h, m] = subject.time.split(':');
           const classDate = new Date(now);
           classDate.setHours(Number(h), Number(m)-1, 0, 0);
+          const popupKey = `${subject.name}|${now.getFullYear()}-${now.getMonth()+1}-${now.getDate()}|${subject.time}`;
           if (
             now.getFullYear() === classDate.getFullYear() &&
             now.getMonth() === classDate.getMonth() &&
             now.getDate() === classDate.getDate() &&
             now.getHours() === classDate.getHours() &&
-            now.getMinutes() === classDate.getMinutes()
+            now.getMinutes() === classDate.getMinutes() &&
+            !shownAttendancePopups.has(popupKey)
           ) {
             setPopupSubject(subject);
             setShowAttendancePopup(true);
+            setShownAttendancePopups(prev => new Set(prev).add(popupKey));
           }
         }
       });
     }, 1000 * 30); // check every 30s
     return () => clearInterval(interval);
-  }, [subjects]);
+  }, [subjects, shownAttendancePopups]);
 
   const markAttendance = (subjectId, attended) => {
+    // Find the subject by id to get its name
+    const subject = subjects.find(s => s.id === subjectId);
+    if (!subject) return;
     setAttendance(prev => {
-      const prevData = prev[subjectId] || { attended: 0, total: 42 };
+      const prevData = prev[subject.name] || { attended: 0, total: 42 };
       return {
         ...prev,
-        [subjectId]: {
+        [subject.name]: {
           attended: attended ? Math.min(prevData.attended + 1, 42) : prevData.attended,
           total: 42
         }
@@ -372,13 +385,37 @@ export default function StudentScheduleManager() {
   };
 
   const saveEditSubject = () => {
-    setSubjects((prev) =>
-      prev.map((subject) =>
-        subject.id === editSubjectId ? { ...subject, ...editSubject } : subject
-      )
-    );
-    cancelEditSubject();
+    setConfirmDialog({ open: true, action: 'save', subject: editSubject });
   };
+
+  const handleSaveEditSubject = () => {
+    setConfirmDialog({ open: true, action: 'save', subject: editSubject });
+  };
+  const handleRemoveSubject = (subject) => {
+    setConfirmDialog({ open: true, action: 'delete', subject });
+  };
+  const handleCancelEditSubject = () => {
+    setConfirmDialog({ open: true, action: 'cancel', subject: null });
+  };
+
+  const confirmAction = () => {
+    if (confirmDialog.action === 'save') {
+      setSubjects((prev) =>
+        prev.map((subject) =>
+          subject.id === editSubjectId ? { ...subject, ...editSubject } : subject
+        )
+      );
+      setEditSubjectId(null);
+      setEditSubject({ name: '', teacher: '', time: '', days: [] });
+    } else if (confirmDialog.action === 'delete') {
+      setSubjects((prev) => prev.filter(subject => subject.id !== confirmDialog.subject.id));
+    } else if (confirmDialog.action === 'cancel') {
+      setEditSubjectId(null);
+      setEditSubject({ name: '', teacher: '', time: '', days: [] });
+    }
+    setConfirmDialog({ open: false, action: null, subject: null });
+  };
+  const closeDialog = () => setConfirmDialog({ open: false, action: null, subject: null });
 
   const downloadPDF = () => {
     const pdf = new jsPDF()
@@ -577,10 +614,10 @@ export default function StudentScheduleManager() {
                           </div>
                         </div>
                         <div className="flex gap-2 mt-2">
-                          <Button variant="default" size="sm" onClick={saveEditSubject}>
+                          <Button variant="default" size="sm" onClick={handleSaveEditSubject}>
                             Save
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={cancelEditSubject}>
+                          <Button variant="ghost" size="sm" onClick={handleCancelEditSubject}>
                             Cancel
                           </Button>
                         </div>
@@ -605,7 +642,7 @@ export default function StudentScheduleManager() {
                           <Button
                             variant="ghost"
                             size="icon"
-                            onClick={() => removeSubject(subject.id)}
+                            onClick={() => handleRemoveSubject(subject)}
                             aria-label={`Remove ${subject.name}`}
                           >
                             <X className="h-4 w-4" />
@@ -691,16 +728,44 @@ export default function StudentScheduleManager() {
             <p className="text-center text-gray-500">No subjects added yet.</p>
           ) : (
             <ul className="space-y-2">
-              {subjects.map(subject => {
-                const att = attendance[subject.id] || { attended: 0, total: 42 };
-                const percent = Math.round((att.attended / att.total) * 100);
+              {/* Group subjects by name */}
+              {Array.from(new Set(subjects.map(s => s.name))).map(subjectName => {
+                const att = attendance[subjectName] || { attended: 0, total: 42 };
+                const percent = att.total > 0 ? Math.round((att.attended / att.total) * 100) : 0;
                 const remaining = Math.max(0, Math.ceil(0.75 * att.total) - att.attended);
                 return (
-                  <li key={subject.id} className="p-2 bg-gray-100 rounded flex flex-col md:flex-row md:items-center md:justify-between">
+                  <li key={subjectName} className="p-2 bg-gray-100 rounded flex flex-col md:flex-row md:items-center md:justify-between">
                     <div>
-                      <p className="font-medium">{subject.name}</p>
+                      <p className="font-medium">{subjectName}</p>
                       <p className="text-sm text-gray-600">Attended: {att.attended} / {att.total} ({percent}%)</p>
                       <p className="text-sm text-gray-600">Remaining for 75%: {remaining}</p>
+                    </div>
+                    <div className="flex items-center gap-2 mt-2 md:mt-0">
+                      {editAttendanceSubject === subjectName ? (
+                        <>
+                          <input
+                            type="number"
+                            min={0}
+                            max={att.total}
+                            value={editAttendanceValue}
+                            onChange={e => setEditAttendanceValue(Math.max(0, Math.min(att.total, Number(e.target.value))))}
+                            className="w-16 px-2 py-1 rounded border border-gray-300 text-sm"
+                          />
+                          <Button size="sm" onClick={() => {
+                            setAttendance(prev => ({
+                              ...prev,
+                              [subjectName]: { ...att, attended: editAttendanceValue }
+                            }));
+                            setEditAttendanceSubject(null);
+                          }}>Save</Button>
+                          <Button size="sm" variant="ghost" onClick={() => setEditAttendanceSubject(null)}>Cancel</Button>
+                        </>
+                      ) : (
+                        <Button size="sm" variant="outline" onClick={() => {
+                          setEditAttendanceSubject(subjectName);
+                          setEditAttendanceValue(att.attended);
+                        }}>Edit</Button>
+                      )}
                     </div>
                   </li>
                 );
@@ -719,6 +784,19 @@ export default function StudentScheduleManager() {
             <div className="flex gap-4 justify-center">
               <Button onClick={() => markAttendance(popupSubject.id, true)} variant="default">YES</Button>
               <Button onClick={() => markAttendance(popupSubject.id, false)} variant="destructive">NO</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {/* Confirmation Dialog */}
+      {confirmDialog.open && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-40">
+          <div className="bg-white rounded-lg shadow-lg p-6 w-full max-w-sm">
+            <h2 className="text-lg font-bold mb-2">Confirm {confirmDialog.action === 'save' ? 'Save' : confirmDialog.action === 'delete' ? 'Delete' : 'Cancel'}?</h2>
+            <p className="mb-4">Are you sure you want to {confirmDialog.action} {confirmDialog.action === 'delete' && confirmDialog.subject ? confirmDialog.subject.name : ''}?</p>
+            <div className="flex gap-4 justify-center">
+              <Button onClick={confirmAction} variant="default">YES</Button>
+              <Button onClick={closeDialog} variant="destructive">NO</Button>
             </div>
           </div>
         </div>
